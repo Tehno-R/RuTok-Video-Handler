@@ -1,12 +1,12 @@
 import os
 import shutil
 import sys
-import Logger
 from os import mkdir
 from pathlib import Path
-import dotenv
 
-from domain import Video
+import Logger
+
+from video import Video
 
 logger = Logger.generate_logger("Path Controller")
 
@@ -21,10 +21,6 @@ class PathHandler:
 
     def __init__(self):
         raise TypeError("Нельзя создавать экземпляры статического класса")
-
-    @staticmethod
-    def load_env_variables():
-        dotenv.load_dotenv(PathHandler._WORK_DIRECTORY_PATH.joinpath(".env"))
 
     @staticmethod
     def refresh_paths(refresh_directories: bool = True):
@@ -111,19 +107,21 @@ class PathHandler:
         if path_to_delete.exists():
             path_to_delete.unlink()
         else:
-            logger.error(f"Can't delete file {PathHandler._INPUT_PATH.joinpath(video.get_uid_name())} from input "
+            logger.error(f"Can't delete file video {PathHandler._INPUT_PATH.joinpath(video.get_uid_name())} from input "
                            f"because it does not exist")
 
     @classmethod
     @check_ready_to_work
     def delete_file_from_output(cls, video: Video):
-        path_to_delete = PathHandler._OUTPUT_PATH.joinpath(video.get_uid_name())
-        if path_to_delete.exists():
-            path_to_delete.unlink()
+        path_to_delete_video = PathHandler._OUTPUT_PATH.joinpath(video.get_uid_name())
+        path_to_delete_preview = PathHandler._OUTPUT_PATH.joinpath(video.get_uid_name().__str__() + "_preview")
+        if path_to_delete_video.exists():
+            path_to_delete_video.unlink()
+            path_to_delete_preview.unlink()
         else:
-            logger.error(f"Can't delete file {PathHandler._INPUT_PATH.joinpath(video.get_uid_name())} from output "
+            logger.error(f"Can't delete file video or preview {PathHandler._INPUT_PATH.joinpath(video.get_uid_name())} from output "
                            f"because it does not exist")
 
 
-PathHandler.load_env_variables()
+# PathHandler.load_env_variables()
 PathHandler.refresh_paths()

@@ -1,26 +1,20 @@
 import os
 import sys
 import threading
-
-from pydantic import BaseModel
-
-import Logger
+from contextlib import asynccontextmanager
 
 import httpx
+import dotenv
+dotenv.load_dotenv()
 import uvicorn
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, HTTPException
 
-from controllers.path_controller import PathHandler
-from ffmpeg_handler import FFmpegHandler
-from controllers.id_controller import IdController
-
-from core.domain import Video
-
+import Logger
 logger = Logger.generate_logger("App")
-PathHandler.load_env_variables()
-FAST_API_PORT=os.getenv("FAST_API_PORT")
-UPLOAD_VIDEO_URL=os.getenv("UPLOAD_VIDEO_URL")
+from controllers.id_controller import IdController
+from controllers.path_controller import PathHandler
+from domain.video import Video
+from frameworks.ffmpeg_handler import FFmpegHandler
 
 
 VIDEO_FILE_EXTENSIONS_MEDIATYPE = {
@@ -28,6 +22,8 @@ VIDEO_FILE_EXTENSIONS_MEDIATYPE = {
         'webm': 'video/webm',
         'mov': 'video/quicktime'
     }
+
+UPLOAD_VIDEO_URL = os.getenv("UPLOAD_VIDEO_URL")
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
@@ -62,7 +58,13 @@ def get_media_type(filename: str) -> str:
 
 def handle_video(video: Video):
     logger.info(f"Starting video handle process with {video.get_uid_name()} ({video.get_origin_name()})")
-    FFmpegHandler(video=video)
+    handler = FFmpegHandler(video=video)
+    status_code = handler.to_handle()
+    if status_code != 0:
+        logger.error(f"Handling video file {video.get_uid_name()} finished with error")
+        PathHandler.delete_file_from_input(video=video)
+        PathHandler.delete_file_from_output(video=video)
+        return
     PathHandler.delete_file_from_input(video=video)
     send_video(video=video)
     PathHandler.delete_file_from_output(video=video)
@@ -70,20 +72,23 @@ def handle_video(video: Video):
     logger.info(f"Finished video handle process with {video.get_uid_name()}")
 
 def send_video(video: Video):
-    url = UPLOAD_VIDEO_URL
-    files = {
-        'file': (video.get_origin_name(),
-                 open(PathHandler.get_output_path().joinpath(video.get_uid_name()), 'rb'),
-                 'video/mp4')
-    }
-    try:
-        httpx.post(url, files=files)
-    except httpx.HTTPError as e:
-        logger.error(f"Error sending video file {video.get_uid_name()} to service storage video")
-    else:
-        logger.info(f"Video file {video.get_uid_name()} sent to service storage video")
+    with (open(PathHandler.get_output_path().joinpath(video.get_uid_name()), 'rb') as video_file,
+          open(PathHandler.get_output_path().joinpath(video.get_uid_name().__str__() + "_preview"), 'rb') as photo_file):
+        files = {
+            'file': (video.get_origin_name(), video_file, 'video/mp4'),
+            'preview': (video.get_origin_name_for_preview(), photo_file, 'image/jpeg')
+        }
+
+        try:
+            httpx.post(UPLOAD_VIDEO_URL, files=files)
+        except httpx.HTTPError as e:
+            logger.error(f"Error sending video file {video.get_uid_name()} to service storage video {UPLOAD_VIDEO_URL}")
+        else:
+            logger.info(f"Video file {video.get_uid_name()} sent to service storage video")
 
 if __name__ == "__main__":
+    # print(os.getenv("PYTHONPATH"))
+    FAST_API_PORT = os.getenv("FAST_API_PORT")
     try:
         port = int(FAST_API_PORT)
     except ValueError:
@@ -91,4 +96,4 @@ if __name__ == "__main__":
         sys.exit(1)
     else:
         logger.info("Starting uvicorn server")
-        uvicorn.run("main:app", host="localhost", port=port)
+        uvicorn.run("main:app", host="0.0.0.0", port=port)

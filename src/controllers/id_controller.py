@@ -1,6 +1,7 @@
 import uuid
-import Logger
 from typing import Set
+
+import Logger
 
 logger = Logger.generate_logger("IDController")
 

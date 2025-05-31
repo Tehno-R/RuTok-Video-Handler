@@ -1,0 +1,7 @@
+services:
+  video-handler-service:
+    build: .
+    image: video-handler:latest
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
