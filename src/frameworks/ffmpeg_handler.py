@@ -17,8 +17,8 @@ class FFmpegHandler:
     _CODEC_VIDEO = "h264"
     _V_PROFILE = "main"
     _CODEC_AUDIO = "mp3"
-    _ASPECT_RATIO = "16:9"
-    _RESOLUTION = "1920:1080"
+    _ASPECT_RATIO = "9:16"
+    _RESOLUTION = "1080:1920"
     _BITRATE = "27306k"  # kbit/s
     _DURATION = "00:01:00"
 

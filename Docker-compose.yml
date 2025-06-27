@@ -1,7 +1,65 @@
 services:
   video-handler-service:
-    build: .
-    image: video-handler:latest
+    image: t10shi/rutok-video-handler:latest
+    container_name: rutok-video-handler
+    environment:
+      FAST_API_PORT: 8000
+      UPLOAD_VIDEO_URL: http://file-storage:8001/api/files/upload
     ports:
       - "8000:8000"
-    restart: unless-stopped
+
+  minio:
+    image: 'minio/minio:latest'
+    container_name: minio
+    environment:
+      - MINIO_ROOT_USER=rutok
+      - MINIO_ROOT_PASSWORD=rutokminio
+    command: server ~/data --console-address :9001
+    ports:
+      - 9001:9001
+      - 9000:9000
+
+  postgres-db:
+    image: postgres:latest
+    container_name: rutok-db
+    environment:
+      - POSTGRES_USER=rutok
+      - POSTGRES_PASSWORD=rutok
+      - POSTGRES_DB=rutok
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U rutok -d rutok" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  file-storage:
+    image: nodespond666/rutok-file-storage:latest
+    container_name: file-storage
+    ports:
+      - "8001:8001"
+    environment:
+      MINIO_HOST: "minio:9000"
+      MINIO_ACCESS_KEY: "rutok"
+      MINIO_SECRET_KEY: "rutokminio"
+      FAST_API_PORT: "8001"
+      DATABASE_URL: "postgresql://rutok:rutok@postgres-db:5432/rutok"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    command: sh -c "alembic upgrade head && python storage_service/main.py"
+
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=rutok@rutok.com
+      - PGADMIN_DEFAULT_PASSWORD=rutokminio
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres-db
